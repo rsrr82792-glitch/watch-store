@@ -1,27 +1,33 @@
 pipeline {
     agent any
     environment {
-        PROJECT_DIR = "/home/ubuntu/watch-store"
-        WEB_ROOT = "/var/www/html/watch-store"
+        VENV = 'venv'
     }
     stages {
-        stage('Pull from GitHub') {
+        stage('Install Dependencies') {
             steps {
-                git branch: 'main', 
-                    credentialsId: 'github-creds', 
-                    url: 'https://github.com/rsrr82792-glitch/watch-store.git'
+                sh '''
+                set -e
+                sudo apt update
+                sudo apt install -y python3-venv python3-pip
+                # Create venv only if not exists
+                [ -d "$VENV" ] || python3 -m venv $VENV
+                . $VENV/bin/activate
+                python -m pip install --upgrade pip
+                python -m pip install -r requirements.txt
+                '''
             }
         }
-        stage('Deploy to Web Root') {
+        stage('Migrate & Run') {
             steps {
-                sh 'sudo rm -rf $WEB_ROOT/*'
-                sh 'sudo cp -r $PROJECT_DIR/* $WEB_ROOT/'
-                sh 'sudo chown -R www-data:www-data $WEB_ROOT'
-            }
-        }
-        stage('Restart Nginx') {
-            steps {
-                sh 'sudo systemctl restart nginx'
+                sh '''
+                set -e
+                . $VENV/bin/activate
+                python manage.py migrate
+                # Kill previous server if running
+                pkill -f "manage.py runserver" || true
+                nohup python manage.py runserver 0.0.0.0:8000 > server.log 2>&1 &
+                '''
             }
         }
     }
