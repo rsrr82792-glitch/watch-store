@@ -1,8 +1,6 @@
 pipeline {
     agent any
-    environment {
-      pipeline {
-    agent any
+
     stages {
         stage('Deploy') {
             steps {
